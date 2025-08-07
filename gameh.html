@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🐍 Ular Smooth</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      user-select: none;
+    }
+
+    canvas {
+      background: #111;
+      border: 4px solid #fff;
+    }
+
+    .controls {
+      margin-top: 15px;
+      display: grid;
+      grid-template-areas:
+        ". up ."
+        "left down right";
+      gap: 10px;
+    }
+
+    .btn {
+      background: #444;
+      color: white;
+      padding: 15px 20px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      min-width: 60px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn:active {
+      background: #888;
+    }
+
+    .up    { grid-area: up; }
+    .down  { grid-area: down; }
+    .left  { grid-area: left; }
+    .right { grid-area: right; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="600"></canvas>
+
+  <div class="controls">
+    <button class="btn up">⬆️</button>
+    <button class="btn left">⬅️</button>
+    <button class="btn down">⬇️</button>
+    <button class="btn right">➡️</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const gridSize = 20;
+    const tileCount = canvas.width / gridSize;
+    let direction = { x: 1, y: 0 };
+    let nextDirection = { x: 1, y: 0 };
+
+    let snake = [{ x: 10, y: 10 }];
+    let apple = randomPos();
+    let lastTime = 0;
+    let moveTimer = 0;
+    let speed = 150; // ms per move
+    let isGrowing = false;
+
+    let fastMode = false;
+    let star = null;
+    let showStar = false;
+
+    function randomPos() {
+      return {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+      };
+    }
+
+    function resetGame() {
+      snake = [{ x: 10, y: 10 }];
+      direction = { x: 1, y: 0 };
+      nextDirection = { x: 1, y: 0 };
+      apple = randomPos();
+      star = null;
+      showStar = false;
+    }
+
+    function draw() {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Apple
+      ctx.fillStyle = "orange";
+      ctx.fillRect(apple.x * gridSize, apple.y * gridSize, gridSize, gridSize);
+
+      // Star
+      if (showStar && star) {
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        ctx.arc(star.x * gridSize + 10, star.y * gridSize + 10, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Snake
+      ctx.fillStyle = "lime";
+      snake.forEach(segment => {
+        ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
+      });
+    }
+
+    function moveSnake() {
+      direction = nextDirection;
+      let head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+
+      // Star avoidance
+      if (showStar && star && head.x === star.x && head.y === star.y) {
+        avoidStar();
+        head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+      }
+
+      // Game over conditions
+      if (
+        head.x < 0 || head.x >= tileCount ||
+        head.y < 0 || head.y >= tileCount ||
+        snake.some(s => s.x === head.x && s.y === head.y)
+      ) {
+        alert("Game Over!");
+        resetGame();
+        return;
+      }
+
+      snake.unshift(head);
+
+      if (head.x === apple.x && head.y === apple.y) {
+        isGrowing = true;
+        apple = randomPos();
+      }
+
+      if (!isGrowing) snake.pop();
+      else isGrowing = false;
+    }
+
+    function avoidStar() {
+      const options = [
+        { x: 1, y: 0 }, { x: -1, y: 0 },
+        { x: 0, y: 1 }, { x: 0, y: -1 }
+      ];
+      for (let opt of options) {
+        const newX = snake[0].x + opt.x;
+        const newY = snake[0].y + opt.y;
+
+        if (
+          newX >= 0 && newX < tileCount &&
+          newY >= 0 && newY < tileCount &&
+          !snake.some(s => s.x === newX && s.y === newY) &&
+          (!star || (newX !== star.x || newY !== star.y))
+        ) {
+          nextDirection = opt;
+          break;
+        }
+      }
+    }
+
+    function gameLoop(timestamp) {
+      const delta = timestamp - lastTime;
+      lastTime = timestamp;
+      moveTimer += delta;
+
+      if (moveTimer > speed) {
+        moveSnake();
+        draw();
+        moveTimer = 0;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Bintang tiap 8 detik
+    setInterval(() => {
+      star = randomPos();
+      showStar = true;
+      setTimeout(() => {
+        showStar = false;
+        star = null;
+      }, 15000);
+    }, 8000);
+
+    // Speed boost random (5x selama 0.2 detik)
+    setInterval(() => {
+      if (!fastMode) {
+        fastMode = true;
+        speed = 30;
+        setTimeout(() => {
+          speed = 150;
+          fastMode = false;
+        }, 200);
+      }
+    }, Math.random() * 5000 + 3000);
+
+    // Control buttons
+    document.querySelector(".up").onclick = () => {
+      if (direction.y === 0) nextDirection = { x: 0, y: -1 };
+    };
+    document.querySelector(".down").onclick = () => {
+      if (direction.y === 0) nextDirection = { x: 0, y: 1 };
+    };
+    document.querySelector(".left").onclick = () => {
+      if (direction.x === 0) nextDirection = { x: -1, y: 0 };
+    };
+    document.querySelector(".right").onclick = () => {
+      if (direction.x === 0) nextDirection = { x: 1, y: 0 };
+    };
+
+    draw();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
